@@ -1,0 +1,25 @@
+name: Build & Push Docker Image
+
+on:
+  push:
+    branches:
+      - main  # Trigger build on push to the main branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository code
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      # Login to GitHub Container Registry (GHCR)
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+      # Build and push the Docker image
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ghcr.io/${{ secrets.GHCR_USERNAME }}/voidwatcher:latest .
+          docker push ghcr.io/${{ secrets.GHCR_USERNAME }}/voidwatcher:latest

@@ -1,1 +1,18 @@
 # VoidWatcher
+
+Get Started 
+```
+services:
+  voidwatcher:
+    build: .
+    container_name: voidwatcher
+    environment:
+      - CONTAINER_NAMES=my_container_1,my_container_2
+      - WATCH_TERMS=error,critical failure
+      - DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_url
+      - GOTIFY_URL=http://your-gotify-url/message
+      - GOTIFY_TOKEN=your_gotify_token
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Needed to access logs
+    restart: always
+    ```
