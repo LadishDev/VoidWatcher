@@ -51,7 +51,7 @@ Use the example docker-compose.yml below to get started using.
 ```yml
 services:
   voidwatcher:
-    image: ghcr.io/ladishdev/voidwatcher:latest
+    image: ladishdev/voidwatcher:latest
     container_name: voidwatcher
     environment:
       - CONTAINER_NAMES=my_container_1,my_container_2
