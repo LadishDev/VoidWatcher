@@ -8,8 +8,8 @@
 <div align="center">
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
-![Docker Pulls](https://img.shields.io/docker/pulls/ladishdev/voidwatcher) 
-![GitHub Repo stars](https://img.shields.io/github/stars/ladishdev/voidwatcher) 
+![GHCR Pulls](https://img.shields.io/github/actions/workflow/status/LadishDev/VoidWatcher/docker.yml)
+![GitHub Repo stars](https://img.shields.io/github/stars/LadishDev/VoidWatcher)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
 
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/ladishdev/voidwatcher) 
