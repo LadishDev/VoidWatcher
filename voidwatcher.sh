@@ -1,41 +1,98 @@
-#!/bin/bash
+#!/bin/sh
 
 # Read environment variables
-IFS=',' read -ra CONTAINERS <<< "$CONTAINER_NAMES"
-IFS=',' read -ra WATCH_TEXTS <<< "$WATCH_TERMS"
-DISCORD_WEBHOOK="$DISCORD_WEBHOOK_URL"
-GOTIFY_URL="$GOTIFY_URL"
-GOTIFY_TOKEN="$GOTIFY_TOKEN"
+CONTAINER_NAMES=${CONTAINER_NAMES:-""}
+DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-""}
+GOTIFY_URL=${GOTIFY_URL:-""}
+GOTIFY_TOKEN=${GOTIFY_TOKEN:-""}
 
-# Function to send a notification
-send_alert() {
-    local message="$1"
+# Append /message to GOTIFY_URL if it is set
+if [ -n "$GOTIFY_URL" ]; then
+  GOTIFY_URL="${GOTIFY_URL%/}/message"  # Ensure no double slashes
+fi
 
-    # Send to Discord
-    if [ -n "$DISCORD_WEBHOOK" ]; then
-        curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"🚨 VoidWatcher Alert: $message\"}" "$DISCORD_WEBHOOK"
-    fi
+# Debugging: Print all environment variables
+echo "Environment Variables:"
+echo "CONTAINER_NAMES: $CONTAINER_NAMES"
+echo "DISCORD_WEBHOOK_URL: $DISCORD_WEBHOOK_URL"
+echo "GOTIFY_URL: $GOTIFY_URL"
+echo "GOTIFY_TOKEN: $GOTIFY_TOKEN"
 
-    # Send to Gotify
-    if [ -n "$GOTIFY_URL" ] && [ -n "$GOTIFY_TOKEN" ]; then
-        curl -H "X-Gotify-Key: $GOTIFY_TOKEN" -H "Content-Type: application/json" -X POST -d "{\"title\":\"VoidWatcher Alert\", \"message\":\"$message\", \"priority\":5}" "$GOTIFY_URL"
-    fi
+# Ensure at least one container is defined
+if [ -z "$CONTAINER_NAMES" ]; then
+  echo "❌ No containers specified. Set CONTAINER_NAMES environment variable."
+  exit 1
+fi
+
+# Normalize container names: Replace hyphens with underscores
+NORMALIZED_CONTAINER_NAMES=$(echo "$CONTAINER_NAMES" | tr '-' '_')
+
+# Split container names into an array
+CONTAINERS=$(echo "$NORMALIZED_CONTAINER_NAMES" | tr ',' ' ')
+
+# Function to process logs for a container
+watch_logs() {
+  local CONTAINER="$1"
+  local TERMS_VAR="$2"  # Name of the environment variable for terms
+
+  # Dynamically fetch the terms from the environment variable
+  TERMS_LIST=$(eval echo \$$TERMS_VAR)
+
+  if [ -z "$TERMS_LIST" ]; then
+    echo "⚠️ No watch terms defined for container: $CONTAINER"
+    return
+  fi
+
+  # Debugging: Print container and terms
+  echo "👀 Watching logs for container: $CONTAINER (Terms: $TERMS_LIST)"
+
+  # Split terms into an array
+  TERMS=$(echo "$TERMS_LIST" | tr ',' ' ')
+
+  # Convert terms to regex format: "error|warning|fail"
+  TERMS_REGEX=$(echo "$TERMS" | tr ' ' '|')
+
+  # Stream logs and check for matches
+  docker logs -f "$CONTAINER" 2>&1 | awk -v container="$CONTAINER" -v discord="$DISCORD_WEBHOOK_URL" -v gotify="$GOTIFY_URL" -v token="$GOTIFY_TOKEN" -v terms="$TERMS_REGEX" '
+  BEGIN { 
+    # Pre-compile terms regex
+    split(terms, term_array, "|")
+    term_pattern = "(" term_array[1]
+    for (i = 2; i <= length(term_array); i++) {
+      term_pattern = term_pattern "|" term_array[i]
+    }
+    term_pattern = term_pattern ")"
+  }
+  {
+    if ($0 ~ term_pattern) {
+      print "🚨 Found match in " container ": " $0
+
+      # Send notification to Discord
+      if (discord != "") {
+        message = "🚨 Found in " container " log: " $0
+        gsub(/"/, "\\\"", message)
+        cmd = "curl -s -X POST -H \"Content-Type: application/json\" -d \"{\\\"content\\\": \\\"" message "\\\"}\" " discord
+        system(cmd)
+      }
+
+      # Send notification to Gotify
+      if (gotify != "" && token != "") {
+        message = $0
+        gsub(/"/, "\\\"", message)
+        cmd = "curl -s -X POST -H \"Content-Type: application/json\" -d \"{\\\"title\\\": \\\"Log Alert: " container "\\\", \\\"message\\\": \\\"" message "\\\"}\" " gotify "?token=" token
+        system(cmd)
+      }
+    }
+  }'
 }
 
-# Monitor logs for each container
-monitor_logs() {
-    local container_name="$1"
-    local watch_text="$2"
-    
-    docker logs -f "$container_name" 2>&1 | grep --line-buffered "$watch_text" | while read -r line; do
-        send_alert "Detected '$watch_text' in $container_name: $line"
-    done
-}
-
-# Start monitoring in parallel
-for i in "${!CONTAINERS[@]}"; do
-    monitor_logs "${CONTAINERS[$i]}" "${WATCH_TEXTS[$i]}" &
+# Start watching logs for each container
+for CONTAINER in $CONTAINERS; do
+  # Normalize the container name for the TERMS_VAR
+  NORMALIZED_CONTAINER=$(echo "$CONTAINER" | tr '-' '_')
+  CONTAINER_TERMS_VAR="${NORMALIZED_CONTAINER}_TERMS"
+  watch_logs "$CONTAINER" "$CONTAINER_TERMS_VAR" &
 done
 
-# Keep the script running
+# Keep script running
 wait

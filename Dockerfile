@@ -1,16 +1,16 @@
 FROM alpine:latest
 
-# Install required tools
+# Install necessary tools
 RUN apk add --no-cache bash curl docker-cli
 
 # Set working directory
 WORKDIR /app
 
-# Copy script
-COPY voidwatcher.sh ./
+# Copy the script into the container
+COPY voidwatcher.sh /app/voidwatcher.sh
 
-# Make script executable
-RUN chmod +x voidwatcher.sh
+# Set executable permissions
+RUN chmod +x /app/voidwatcher.sh
 
-# Start monitoring
-CMD ["./voidwatcher.sh"]
+# Run the script with an explicit shell
+CMD ["/bin/sh", "/app/voidwatcher.sh"]
